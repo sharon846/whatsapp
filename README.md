@@ -6,7 +6,6 @@ This server allows you to:
 - List WhatsApp contacts and groups
 - Search chats by name, ID, or phone
 - Send messages and media to contacts or groups
-- Send transcription alerts (legacy support for `phones.txt`)
 
 ---
 
@@ -15,7 +14,6 @@ This server allows you to:
 - **GET /contacts** – List all contacts
 - **GET /find_chat?q=...** – Search chats
 - **POST /send_chat** – Send text or media messages
-- **POST /transcription_results** – Send transcription alerts (with `names` or legacy `phones.txt`)
 
 ---
 
@@ -37,18 +35,6 @@ Make sure you have Google Chrome or Chromium installed.
 
 4. **First-time QR Login**
 When the server runs, scan the QR code with your WhatsApp account.
-
----
-
-## ⚙ Configuration
-
-### `phones.txt` (Legacy mode)
-For `/transcription_results` without explicit `names`, add phone numbers here (one per line):
-```
-972501234567
-972541234567
-# Lines starting with # are ignored
-```
 
 ---
 
@@ -136,25 +122,6 @@ Send a message to a contact or group.
 
 ---
 
-### **POST /transcription_results**
-Send transcription alerts.
-
-**Body:**
-```json
-{
-  "channel": "tv-12",
-  "time": "14:03",
-  "result": "Breaking news...",
-  "file": "C:/path/to/clip.mp3",
-  "names": ["News Group", "John Doe"] // optional
-}
-```
-
-- If `names` is provided → sends to each listed contact/group.
-- If `names` is omitted → reads from `phones.txt` and sends as direct messages.
-
----
-
 ## 📋 Parameters & Limitations
 | Parameter   | Type     | Required | Description |
 |-------------|----------|----------|-------------|
@@ -183,11 +150,6 @@ curl "http://127.0.0.1:5001/find_chat?q=Friends"
 **Send a message:**
 ```bash
 curl -X POST http://127.0.0.1:5001/send_chat   -H "Content-Type: application/json"   -d '{"target": "John Doe", "message": "Hello!"}'
-```
-
-**Send transcription result to group by name:**
-```bash
-curl -X POST http://127.0.0.1:5001/transcription_results   -H "Content-Type: application/json"   -d '{"channel": "tv-12", "time": "14:03", "result": "Breaking news...", "names": ["News Group"]}'
 ```
 
 ---
