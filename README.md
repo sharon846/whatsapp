@@ -58,7 +58,7 @@ const client = new Client({
 client.on("ready", () => {
   console.log("✅ WhatsApp is ready!");
   registerWhatsAppRoutes(app, client);
-  app.listen(5001, "127.0.0.1", () => console.log("API on 5001"));
+  app.listen(1234, "127.0.0.1", () => console.log("API on 1234"));
 });
 
 client.initialize();
