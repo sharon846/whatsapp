@@ -8,6 +8,7 @@ const {
   listContacts,
   sendMessageWithOptionalMedia
 } = require("./wa-helper");
+const { spawn } = require("child_process");
 
 
 function registerWhatsAppRoutes(app, client) {
@@ -17,6 +18,58 @@ function registerWhatsAppRoutes(app, client) {
 
   let isReady = !!client.info?.wid; // true if already ready
   client.on("ready", () => { isReady = true; });
+
+  // watcher config: { groupId, forwardTo }
+  let pdfWatcher = null;
+
+  // Listen for incoming PDF messages in configured group
+  client.on("message", async (msg) => {
+    try {
+      if (!pdfWatcher) return;
+      if (msg.from !== pdfWatcher.groupId) return;
+      if (!msg.hasMedia || msg.mimetype !== "application/pdf") return;
+
+      const media = await msg.downloadMedia();
+      if (!media) return;
+
+      const filename = msg.filename || "file.pdf";
+      const dir = path.join(__dirname, "downloads");
+      fs.mkdirSync(dir, { recursive: true });
+      const originalPath = path.join(dir, `${Date.now()}_${filename}`);
+      fs.writeFileSync(originalPath, media.data, { encoding: "base64" });
+
+      // call python processing
+      const py = spawn("python3", [path.join(__dirname, "process_pdf.py"), originalPath]);
+      let stdout = "";
+      py.stdout.on("data", (d) => { stdout += d.toString(); });
+      py.stderr.on("data", (d) => console.error("Python:", d.toString()));
+      const code = await new Promise((resolve) => py.on("close", resolve));
+      if (code !== 0) {
+        await client.sendMessage(pdfWatcher.groupId, "PDF processing failed.");
+        return;
+      }
+      const processedPath = stdout.trim().split(/\r?\n/).pop();
+
+      // notify group with new path
+      await client.sendMessage(pdfWatcher.groupId, `Processed PDF saved to: ${processedPath}`);
+
+      // send processed PDF to target number
+      const targetChat = await findChat(client, pdfWatcher.forwardTo);
+      if (targetChat) {
+        await sendMessageWithOptionalMedia(
+          client,
+          targetChat.id._serialized,
+          "Processed PDF",
+          processedPath
+        );
+      } else {
+        await client.sendMessage(pdfWatcher.groupId, `Target not found: ${pdfWatcher.forwardTo}`);
+      }
+    } catch (err) {
+      console.error("Error handling incoming PDF:", err);
+      try { await client.sendMessage(pdfWatcher.groupId, "Error processing PDF."); } catch {}
+    }
+  });
 
   function requireReady(res) {
     if (!isReady) {
@@ -70,6 +123,21 @@ function registerWhatsAppRoutes(app, client) {
       console.error(`Error sending message to ${target}:`, err);
       res.status(500).json({ error: "Failed to send message." });
     }
+  });
+
+  // Body: { group: "<name | id>", forwardTo: "<phone | contact name>" }
+  app.post("/watch_pdf", async (req, res) => {
+    if (!requireReady(res)) return;
+    const { group, forwardTo } = req.body || {};
+    if (!group || !forwardTo) {
+      return res.status(400).json({ error: "Provide 'group' and 'forwardTo'." });
+    }
+    const gchat = await findChat(client, group);
+    if (!gchat || !gchat.isGroup) {
+      return res.status(404).json({ error: `Group not found: ${group}` });
+    }
+    pdfWatcher = { groupId: gchat.id._serialized, forwardTo };
+    res.json({ status: "Watching for PDFs." });
   });
 
   return { unregister: () => {/* if you add listeners, detach them here */} };

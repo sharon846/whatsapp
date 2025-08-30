@@ -122,6 +122,27 @@ Send a message to a contact or group.
 
 ---
 
+### **POST /watch_pdf**
+Watch a specific group for incoming PDF files. When a PDF arrives it is
+processed via a local Python script and the result is sent to another
+contact/number.
+
+**Body:**
+```json
+{
+  "group": "My Group",
+  "forwardTo": "972501234567"
+}
+```
+
+**Notes:**
+- `group` can be group name or ID.
+- `forwardTo` can be a phone number or contact name.
+- The processing script is `process_pdf.py` which outputs the path of the
+  new file.
+
+---
+
 ## 📋 Parameters & Limitations
 | Parameter   | Type     | Required | Description |
 |-------------|----------|----------|-------------|
