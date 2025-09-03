@@ -8,7 +8,7 @@ const ffmpegPath = require("ffmpeg-static");
 ffmpeg.setFfmpegPath(ffmpegPath);
 
 // === CONFIG ===
-const MAX_FILE_SIZE = 16 * 1024 * 1024; // WhatsApp ~16MB
+const MAX_FILE_SIZE = 64 * 1024 * 1024; // WhatsApp ~64MB
 
 const ALLOWED_MIME_VIDEO = new Set([
   "video/mp4",
@@ -21,6 +21,9 @@ const ALLOWED_MIME_AUDIO = new Set([
   "audio/aac", "audio/x-aac",
   "audio/mp4", "audio/3gpp",
   "audio/3gpp2", "audio/ogg", "audio/opus"
+]);
+const ALLOWED_MIME_DOC = new Set([
+  "application/pdf"
 ]);
 
 // Track temp files to clean up
@@ -114,10 +117,14 @@ async function detectAndConvertMedia(filePath) {
   if (mimeType === "application/mp4") mimeType = "video/mp4";
 
   // Check allowed types + size
-  const allowed = mimeType.startsWith("video/")
-    ? ALLOWED_MIME_VIDEO.has(mimeType)
-    : ALLOWED_MIME_AUDIO.has(mimeType);
-
+  let allowed = false;
+  if (mimeType.startsWith("video/")) {
+    allowed = ALLOWED_MIME_VIDEO.has(mimeType);
+  } else if (mimeType.startsWith("audio/")) {
+    allowed = ALLOWED_MIME_AUDIO.has(mimeType);
+  } else if (ALLOWED_MIME_DOC.has(mimeType)) {
+    allowed = true;
+  }
   if (!allowed) return { media: null, tempFiles, file: null, mimeType: null };
 
   const stat = fs.statSync(file);
@@ -190,7 +197,7 @@ async function sendMessageWithOptionalMedia(client, chatId, messageText, filePat
       const mediaInfo = await detectAndConvertMedia(filePath);
       temp.push(...(mediaInfo.tempFiles || []));
       if (mediaInfo.media) {
-        await client.sendMessage(chatId, mediaInfo.media, { caption: messageText });
+        await client.sendMessage(chatId, mediaInfo.media, { caption: messageText, sendMediaAsDocument: filePath.includes(".pdf") });
         return;
       }
     }
