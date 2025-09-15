@@ -30,10 +30,7 @@ cd whatsapp
 npm install
 ```
 
-3. **Install Chrome/Chromium**
-Make sure you have Google Chrome or Chromium installed.
-
-4. **First-time QR Login**
+3. **First-time QR Login**
 When the server runs, scan the QR code with your WhatsApp account.
 
 ---

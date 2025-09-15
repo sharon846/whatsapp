@@ -214,6 +214,75 @@ async function sendMessageWithOptionalMedia(client, chatId, messageText, filePat
   }
 }
 
+// === Group management helpers ===
+
+/**
+ * List participants of a group by name or ID.
+ * Returns array of {id, name, isAdmin}.
+ */
+async function listGroupParticipants(client, groupQuery) {
+  const chat = await findChat(client, groupQuery);
+  if (!chat || !chat.isGroup) return null;
+
+  const group = await client.getChatById(chat.id._serialized);
+  return group.participants.map(p => ({
+    id: p.id._serialized,
+    name: p.name || p.pushname || "",
+    isAdmin: p.isAdmin || p.isSuperAdmin || false,
+  }));
+}
+
+/**
+ * Remove participant from group if caller is admin.
+ */
+async function removeGroupParticipant(client, groupQuery, participantId) {
+  const chat = await findChat(client, groupQuery);
+  if (!chat || !chat.isGroup) return { error: "Group not found" };
+
+  const group = await client.getChatById(chat.id._serialized);
+  const me = group.participants.find(p => p.id._serialized === client.info.wid._serialized);
+  if (!me || (!me.isAdmin && !me.isSuperAdmin)) {
+    return { error: "You are not an admin in this group" };
+  }
+
+  try {
+    await group.removeParticipants([participantId]);
+    return { success: true };
+  } catch (e) {
+    console.error("Failed to remove participant:", e);
+    return { error: "Failed to remove participant" };
+  }
+}
+
+/**
+ * Remove all participants from a group (except yourself).
+ */
+async function removeAllParticipants(client, groupQuery) {
+  const chat = await findChat(client, groupQuery);
+  if (!chat || !chat.isGroup) return { error: "Group not found" };
+
+  const group = await client.getChatById(chat.id._serialized);
+  const me = group.participants.find(p => p.id._serialized === client.info.wid._serialized);
+  if (!me || (!me.isAdmin && !me.isSuperAdmin)) {
+    return { error: "You are not an admin in this group" };
+  }
+
+  // Exclude yourself
+  const targets = group.participants
+    .filter(p => p.id._serialized !== client.info.wid._serialized)
+    .map(p => p.id._serialized);
+
+  if (targets.length === 0) return { success: true, removed: [] };
+
+  try {
+    await group.removeParticipants(targets);
+    return { success: true, removed: targets };
+  } catch (e) {
+    console.error("Failed to remove participants:", e);
+    return { error: "Failed to remove participants" };
+  }
+}
+
 module.exports = {
   // config & utils
   detectAndConvertMedia,
@@ -224,4 +293,9 @@ module.exports = {
   findChat,
   listGroups,
   listContacts,
+
+  // groups
+  listGroupParticipants,
+  removeGroupParticipant,
+  removeAllParticipants
 };

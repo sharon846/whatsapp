@@ -6,7 +6,10 @@ const {
   findChat,
   listGroups,
   listContacts,
-  sendMessageWithOptionalMedia
+  sendMessageWithOptionalMedia,
+  listGroupParticipants,
+  removeGroupParticipant,
+  removeAllParticipants
 } = require("./wa-helper");
 
 
@@ -47,6 +50,43 @@ function registerWhatsAppRoutes(app, client) {
       name: chat.name || chat.formattedTitle || "",
       isGroup: !!chat.isGroup,
     });
+  });
+
+  // GET /group_participants?group=<name or id>
+  app.get("/group_participants", async (req, res) => {
+    if (!requireReady(res)) return;
+    const group = (req.query.group || "").toString();
+    if (!group) return res.status(400).json({ error: "Provide 'group'." });
+
+    const participants = await listGroupParticipants(client, group);
+    if (!participants) return res.status(404).json({ error: "Group not found" });
+    res.json(participants);
+  });
+
+  // POST /remove_all_participants
+  // Body: { group: "<name|id>" }
+  app.post("/remove_all_participants", async (req, res) => {
+    if (!requireReady(res)) return;
+    const { group } = req.body || {};
+    if (!group) return res.status(400).json({ error: "Provide 'group'." });
+
+    const result = await removeAllParticipants(client, group);
+    if (result.error) return res.status(403).json(result);
+    res.json({ status: "All participants removed.", removed: result.removed });
+  });
+
+  // POST /remove_participant
+  // Body: { group: "<name|id>", participant: "<id serialized>" }
+  app.post("/remove_participant", async (req, res) => {
+    if (!requireReady(res)) return;
+    const { group, participant } = req.body || {};
+    if (!group || !participant) {
+      return res.status(400).json({ error: "Provide 'group' and 'participant'." });
+    }
+
+    const result = await removeGroupParticipant(client, group, participant);
+    if (result.error) return res.status(403).json(result);
+    res.json({ status: "Participant removed." });
   });
 
   // ========== Sending ==========
